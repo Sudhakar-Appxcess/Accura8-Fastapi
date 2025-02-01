@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google OAuth Frontend Flow</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.6.2/axios.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        #consoleLog {
+            background-color: #f1f1f1;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        #g_id_onload {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Google OAuth Frontend Flow</h1>
+        
+        <div id="g_id_onload"
+            data-client_id=682731490498-mfkrh8ev726qhn8ivtf2ph4lbgjehdgh.apps.googleusercontent.com
+            data-callback="handleCredentialResponse">
+        </div>
+        <div class="g_id_signin" 
+            data-type="standard"
+            data-shape="rectangular"
+            data-theme="outline"
+            data-text="signin_with"
+            data-size="large"
+            data-logo_alignment="left">
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Console Log</h2>
+        <pre id="consoleLog"></pre>
+    </div>
+
+    <script>
+        // Custom console logging
+        const originalConsoleLog = console.log;
+        const logElement = document.getElementById('consoleLog');
+        console.log = function() {
+            const args = Array.from(arguments);
+            const logMessage = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg
+            ).join(' ');
+            
+            logElement.textContent += logMessage + '\n';
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            originalConsoleLog.apply(console, arguments);
+        };
+
+        // Base URL for API
+        const API_BASE_URL = 'http://localhost:8000/api/v1/auth';
+
+        // Global function to handle Google credential response
+        function handleCredentialResponse(response) {
+            try {
+                // Log the entire credential response
+                console.log('🔐 Google Credential Response:', response);
+
+                // Extract the ID token
+                const idToken = response.credential;
+                console.log('🔑 ID Token:', idToken);
+
+                // Send token to backend for verification
+                axios.post(`${API_BASE_URL}/google/verify-token`, 
+                    { token: idToken },
+                    { 
+                        withCredentials: true,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                )
+                .then(verifyResponse => {
+                    console.log('✅ Token Verification Success:', verifyResponse.data);
+                    
+                    // Log cookies for debugging
+                    console.log('🍪 Current Cookies:', document.cookie);
+                })
+                .catch(error => {
+                    console.error('❌ Token Verification Failed:', {
+                        error: error.response?.data || error.message,
+                        status: error.response?.status,
+                        fullError: error
+                    });
+                });
+            } catch (error) {
+                console.error('❌ Google Authentication Error:', {
+                    error: error.message,
+                    fullError: error
+                });
+            }
+        }
+
+        // Configure axios globally
+        axios.defaults.withCredentials = true;
+    </script>
+</body>
+</html>

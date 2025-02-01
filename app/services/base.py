@@ -1,5 +1,5 @@
 # ** App Modules
-from app.helper.orm import ORM
+from app.helpers.orm import ORM
 
 
 class BaseService:

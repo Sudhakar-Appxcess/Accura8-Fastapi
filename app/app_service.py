@@ -1,5 +1,5 @@
 # ** App Modules
-from app.helper.logger import setup_log
+from app.helpers.logger import setup_log
 from app.db import get_db
 
 

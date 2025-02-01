@@ -4,18 +4,16 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
-
+from app.config import settings
 
 # def register_database():
 # Establish a connection to the database
 DATABASE_URL = 'postgresql://{}:{}@{}:{}/{}'.format(
-    os.getenv('DATABASE_USERNAME'),
-    os.getenv('DATABASE_PASSWORD'),
-    # Default Host
-    os.getenv('DATABASE_HOST', 'localhost'),
-    # Port name should same as Docker's exposed port
-    os.getenv('DATABASE_PORT', 5433),
-    os.getenv('DATABASE_NAME')
+    settings.DATABASE_USERNAME,
+    settings.DATABASE_PASSWORD,
+    settings.DATABASE_HOST,
+    settings.DATABASE_PORT,
+    settings.DATABASE_NAME
 )
 
 engine = create_engine(
