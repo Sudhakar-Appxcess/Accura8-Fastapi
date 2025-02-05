@@ -9,7 +9,7 @@ from app.exceptions.custom_exceptions import CustomException
 from app.schemas.user import LoginRequest,ResendVerificationRequest,EmailLoginVerificationRequest,EmailOnlyLoginRequest,GoogleAuthRequest
 from typing import Optional
 from app.helpers.recaptcha import verify_recaptcha
-
+from fastapi.responses import JSONResponse
 
 
 router = APIRouter()
@@ -21,20 +21,28 @@ async def register(
 ):
     try:
         # Verify reCAPTCHA first
-        if not await verify_recaptcha(user_data.recaptcha):
-            raise CustomException(message="reCAPTCHA verification failed")
-            
-        await UserService.register_user(db, user_data)
-        return StandardResponse(
-            status=True,
-            message="Registration successful! Please check your email to verify your account."
-        )
+        # if not await verify_recaptcha(user_data.recaptcha):
+        #     raise CustomException(message="reCAPTCHA verification failed")
+
+        result = await UserService.register_user(db, user_data)
+        # Check if this was a new registration or verification resend
+        if result.get("is_new_registration", True):
+            return JSONResponse(
+                status_code=201,  # Created
+                content=StandardResponse(
+                    status=True,
+                    message="Registration successful! Please check your email to verify your account."
+                ).dict()
+            )
+        else:
+            return JSONResponse(
+                status_code=200,  # OK
+                content=StandardResponse(
+                    status=True,
+                    message="User already registered, Verification code has been resent. Please check your email."
+                ).dict()
+            )
     except CustomException as ce:
-        # return StandardResponse(
-        #     status=False,
-        #     message=ce.message,
-        #     data=ce.data
-        # )
         raise HTTPException(
             status_code=ce.status_code,
             detail=StandardResponse(
@@ -47,10 +55,11 @@ async def register(
         logger.error(f"Unexpected error during registration: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail="Registration failed due to server error"
+            detail=StandardResponse(
+                status=False,
+                message="Registration failed due to server error"
+            ).dict()
         )
-    
-
 
 @router.post("/verify-email", response_model=StandardResponse)
 async def verify_email(
@@ -96,6 +105,8 @@ async def login(
     try:
         if not await verify_recaptcha(login_data.recaptcha):
             raise CustomException(message="reCAPTCHA verification failed")
+        
+        logger.info("reCAPTCHA verification success")
         
         result = await UserService.login(
             db,
@@ -158,15 +169,15 @@ async def resend_verification(
     
 
 
-@router.post("/email-login/initiate", response_model=StandardResponse)
+@router.post("/email-login", response_model=StandardResponse)
 async def initiate_email_login(
     login_data: EmailOnlyLoginRequest,
     db: Session = Depends(get_db)
 ):
     try:
          # Verify reCAPTCHA first
-        if not await verify_recaptcha(login_data.recaptcha):
-            raise CustomException(message="reCAPTCHA verification failed")
+        # if not await verify_recaptcha(login_data.recaptcha):
+        #     raise CustomException(message="reCAPTCHA verification failed")
         
         result = await UserService.initiate_email_login(
             db,

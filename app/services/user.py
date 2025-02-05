@@ -44,78 +44,172 @@ class UserService:
     # GOOGLE_TOKEN_VERIFY_URL = "https://oauth2.googleapis.com/tokeninfo"
     GOOGLE_TOKEN_VERIFY_URL=settings.GOOGLE_TOKEN_VERIFY_URL;
 
-    # _secret_key = settings.AES_SECRET_KEY.encode('utf-8')
-    # if len(_secret_key) not in [16, 24, 32]:
-    #     raise ValueError(f"Invalid key size ({len(_secret_key)}) for AES. Must be 16, 24, or 32 bytes")
-    # _block_size = 128
 
-    # @classmethod
-    # def encrypt_data(cls, data: dict) -> str:
+    # @staticmethod
+    # async def register_user(db: Session, user_data: UserRegisterRequest):
+    #     logger.info(f"Registration attempt for email: {user_data.email}")
+    
+    #     existing_user = db.query(User).filter(User.email == user_data.email).first()
+ 
+    #     if existing_user:
+    #         # if not existing_user.is_verified:
+    #         #     logger.warning(f"Registration failed - email already exists: {user_data.email}, but not verified")
+    #         #     raise UserExistsNotVerifiedError()
+    #         # else:
+    #         #     logger.warning(f"Registration failed - email already exists: {user_data.email}")
+    #         #     raise UserAlreadyExistsError()
+    #         if existing_user.is_verified:
+    #             logger.warning(f"Registration failed - email already exists: {user_data.email}")
+    #             raise UserAlreadyExistsError()
+    #         else :
+    #             logger.warning(f"Registration failed - email already exists: {user_data.email}, but not verified")
+    #             message="Email registerd already! Please check your email to verify your account."
+                
+    #             verification_code = generate_verification_code()
+
+    #             current_time = datetime.now(pytz.UTC)
+                
+    #             user = User(
+    #                 email=user_data.email,
+    #                 firstname=user_data.firstname,
+    #                 lastname=user_data.lastname,
+    #                 # password=hash_password(user_data.password),
+    #                 role_id=role.id,
+    #                 verification_code=verification_code,
+    #                 verification_code_expires_at=current_time + timedelta(minutes=10)
+    #             )
+    #             #  Add user but don't commit yet
+    #             db.add(user)
+    #             db.flush()  # This gets us the user.id without committing
+
+    #             try:
+    #                 # Try to send email
+    #                 await send_verification_email(user.email, verification_code)
+                    
+    #                 # If email sends successfully, commit the transaction
+    #                 db.commit()
+    #                 logger.info(f"User registered successfully: {user.email}")
+    #                 return user
+                    
+    #             except Exception as email_error:
+    #                 # If email fails, rollback the user creation
+    #                 db.rollback()
+    #                 logger.error(f"Email sending failed, rolling back user creation: {str(email_error)}")
+    #                 raise Exception("Failed to send verification email") from email_error
+
     #     try:
-    #         if not cls._secret_key:
-    #             raise ValueError("Secret key not initialized")
+    #         # Try to find the requested role
+    #         role = db.query(Role).filter(Role.name == user_data.role).first()
+            
+    #         if not role:
+    #             logger.info(f"Requested role '{user_data.role}' not found, checking for USER role")
+    #             # If requested role doesn't exist, try to find USER role
+    #             role = db.query(Role).filter(Role.name == "USER").first()
+                
+    #             if not role:
+    #                 # If USER role doesn't exist, create it
+    #                 logger.info("Creating default USER role")
+    #                 role = Role(
+    #                     name="USER",
+    #                     description="Default user role with basic privileges"
+    #                 )
+    #                 db.add(role)
+    #                 db.flush()
+    #                 logger.info(f"Created default USER role with id: {role.id}")
+    #             else:
+    #                 logger.info(f"Using existing USER role with id: {role.id}")
+    #         else:
+    #             logger.info(f"Using requested role '{role.name}' with id: {role.id}")
 
-    #         data_bytes = json.dumps(data).encode('utf-8')
-            
-    #         padder = padding.PKCS7(cls._block_size).padder()
-    #         padded_data = padder.update(data_bytes) + padder.finalize()
-            
-    #         cipher = Cipher(algorithms.AES(cls._secret_key), modes.ECB(), backend=default_backend())
-    #         encryptor = cipher.encryptor()
-    #         encrypted_bytes = encryptor.update(padded_data) + encryptor.finalize()
-            
-    #         return b64encode(encrypted_bytes).decode('utf-8')
-            
+    #         verification_code = generate_verification_code()
+
+
+    #         current_time = datetime.now(pytz.UTC)
+    #         user = User(
+    #             email=user_data.email,
+    #             firstname=user_data.firstname,
+    #             lastname=user_data.lastname,
+    #             # password=hash_password(user_data.password),
+    #             role_id=role.id,
+    #             verification_code=verification_code,
+    #             verification_code_expires_at=current_time + timedelta(minutes=10)
+    #         )
+    #         #  Add user but don't commit yet
+    #         db.add(user)
+    #         db.flush()  # This gets us the user.id without committing
+
+    #         try:
+    #             # Try to send email
+    #             await send_verification_email(user.email, verification_code)
+                
+    #             # If email sends successfully, commit the transaction
+    #             db.commit()
+    #             logger.info(f"User registered successfully: {user.email}")
+    #             return user
+                
+    #         except Exception as email_error:
+    #             # If email fails, rollback the user creation
+    #             db.rollback()
+    #             logger.error(f"Email sending failed, rolling back user creation: {str(email_error)}")
+    #             raise Exception("Failed to send verification email") from email_error
+                
     #     except Exception as e:
-    #         logger.error(f"Encryption failed: {str(e)}")
-    #         raise ValueError(f"Failed to encrypt data: {str(e)}")
-
-    # @classmethod
-    # def decrypt_data(cls, encrypted_data: str) -> dict:
-    #     try:
-    #         if not cls._secret_key:
-    #             raise ValueError("Secret key not initialized")
-
-    #         encrypted_bytes = b64decode(encrypted_data)
-            
-    #         cipher = Cipher(algorithms.AES(cls._secret_key), modes.ECB(), backend=default_backend())
-    #         decryptor = cipher.decryptor()
-    #         decrypted_padded = decryptor.update(encrypted_bytes) + decryptor.finalize()
-            
-    #         unpadder = padding.PKCS7(cls._block_size).unpadder()
-    #         decrypted_bytes = unpadder.update(decrypted_padded) + unpadder.finalize()
-            
-    #         return json.loads(decrypted_bytes.decode('utf-8'))
-            
-    #     except Exception as e:
-    #         logger.error(f"Decryption failed: {str(e)}")
+    #         db.rollback()
+    #         logger.error(f"Registration failed: {str(e)}")
     #         raise
 
     @staticmethod
     async def register_user(db: Session, user_data: UserRegisterRequest):
         logger.info(f"Registration attempt for email: {user_data.email}")
-    
+
         existing_user = db.query(User).filter(User.email == user_data.email).first()
- 
+
         if existing_user:
-            if not existing_user.is_verified:
-                logger.warning(f"Registration failed - email already exists: {user_data.email}, but not verified")
-                raise UserExistsNotVerifiedError()
-            else:
+            if existing_user.is_verified:
                 logger.warning(f"Registration failed - email already exists: {user_data.email}")
                 raise UserAlreadyExistsError()
+            else:
+                logger.info(f"Updating verification code for unverified user: {user_data.email}")
+                
+                # Generate new verification code and update expiration time
+                verification_code = generate_verification_code()
+                current_time = datetime.now(pytz.UTC)
+                
+                # Update the existing user's verification details
+                existing_user.verification_code = verification_code
+                existing_user.verification_code_expires_at = current_time + timedelta(minutes=10)
+                
+                # Update other user details if needed
+                # existing_user.firstname = user_data.firstname
+                # existing_user.lastname = user_data.lastname
+                
+                try:
+                    # Try to send new verification email
+                    await send_verification_email(existing_user.email, verification_code)
+                    
+                    # If email sends successfully, commit the updates
+                    db.commit()
+                    logger.info(f"Verification code updated and email sent for: {existing_user.email}")
+                    return {
+                        "user": existing_user,
+                        "is_new_registration": False  # Flag to indicate this was a resend
+                    }
+                    
+                except Exception as email_error:
+                    # If email fails, rollback the updates
+                    db.rollback()
+                    logger.error(f"Email sending failed for verification code update: {str(email_error)}")
+                    raise Exception("Failed to send verification email") from email_error
 
         try:
-            # Try to find the requested role
+            # Handle new user registration (existing code remains the same)
             role = db.query(Role).filter(Role.name == user_data.role).first()
             
             if not role:
                 logger.info(f"Requested role '{user_data.role}' not found, checking for USER role")
-                # If requested role doesn't exist, try to find USER role
                 role = db.query(Role).filter(Role.name == "USER").first()
                 
                 if not role:
-                    # If USER role doesn't exist, create it
                     logger.info("Creating default USER role")
                     role = Role(
                         name="USER",
@@ -123,40 +217,32 @@ class UserService:
                     )
                     db.add(role)
                     db.flush()
-                    logger.info(f"Created default USER role with id: {role.id}")
-                else:
-                    logger.info(f"Using existing USER role with id: {role.id}")
-            else:
-                logger.info(f"Using requested role '{role.name}' with id: {role.id}")
-
+                
             verification_code = generate_verification_code()
-
-
             current_time = datetime.now(pytz.UTC)
+            
             user = User(
                 email=user_data.email,
                 firstname=user_data.firstname,
                 lastname=user_data.lastname,
-                # password=hash_password(user_data.password),
                 role_id=role.id,
                 verification_code=verification_code,
                 verification_code_expires_at=current_time + timedelta(minutes=10)
             )
-            #  Add user but don't commit yet
+            
             db.add(user)
-            db.flush()  # This gets us the user.id without committing
+            db.flush()
 
             try:
-                # Try to send email
                 await send_verification_email(user.email, verification_code)
-                
-                # If email sends successfully, commit the transaction
                 db.commit()
                 logger.info(f"User registered successfully: {user.email}")
-                return user
+                return {
+                    "user": user,
+                    "is_new_registration": True  # Flag to indicate this was a new registration
+                }
                 
             except Exception as email_error:
-                # If email fails, rollback the user creation
                 db.rollback()
                 logger.error(f"Email sending failed, rolling back user creation: {str(email_error)}")
                 raise Exception("Failed to send verification email") from email_error
@@ -557,7 +643,7 @@ class UserService:
                 raise InvalidVerificationCodeError()
                 
             if not user.verification_code or user.verification_code != verification_code:
-                logger.warning(f"Verification failed - invalid code for user: {email}")
+                logger.warning(f"Verification failed - invalid code for user: {email} you entered: {verification_code} but actual: {user.verification_code}")
                 raise InvalidVerificationCodeError()
             
             current_time = datetime.now(pytz.UTC)
