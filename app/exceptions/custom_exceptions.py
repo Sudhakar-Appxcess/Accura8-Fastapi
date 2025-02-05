@@ -6,7 +6,11 @@ class CustomException(Exception):
         self.message = message
         self.status_code = status_code
         self.data = data
-        super().__init__(self.message)
+        super().__init__(self.message)    
+
+class UserExistsNotVerifiedError(CustomException):
+    def __init__(self, message: str = "Email already registered, please verify your email!"):  
+        super().__init__(message=message, status_code=409) 
 
 class UserAlreadyExistsError(CustomException):
     def __init__(self, message: str = "Email already registered"):  

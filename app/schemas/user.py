@@ -4,18 +4,17 @@ from typing import Optional,Union, Dict
 from datetime import datetime
 import re
 
+
+
+
+# User Requests
 class UserRegisterRequest(BaseModel):
     firstname: constr(min_length=2, max_length=50, strip_whitespace=True)
-    lastname: constr(min_length=2, max_length=50, strip_whitespace=True)
+    lastname: constr(min_length=1, max_length=50, strip_whitespace=True)
     email: EmailStr
-    password: constr(min_length=8, max_length=50)
+    # password: constr(min_length=8, max_length=50)
     role: Optional[str] = "USER"
-
-    @validator('password')
-    def validate_password(cls, v):
-        if not re.match(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$', v):
-            raise ValueError('Password must contain uppercase, lowercase, number and special character')
-        return v
+    recaptcha: str
 
     @validator('firstname', 'lastname')
     def validate_name(cls, v):
@@ -29,6 +28,34 @@ class UserRegisterRequest(BaseModel):
         if v.upper() not in valid_roles:
             raise ValueError('Invalid role')
         return v.upper()
+    
+
+class EmailVerificationRequest(BaseModel):
+    email: EmailStr
+    verification_code: constr(min_length=6, max_length=6)
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+    recaptcha: str
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+class EmailOnlyLoginRequest(BaseModel):
+    email: EmailStr
+    recaptcha: str
+
+class EmailLoginVerificationRequest(BaseModel):
+    email: EmailStr
+    verification_code: constr(min_length=6, max_length=6)
+
+class GoogleAuthRequest(BaseModel):
+    token: str
+
+
+
+# User Responses
 
 class StandardResponse(BaseModel):
     status: bool
@@ -36,16 +63,6 @@ class StandardResponse(BaseModel):
     # data: Optional[dict] = None
     data: Optional[Union[Dict, str]] = None
 
-# schemas/user.py
-class EmailVerificationRequest(BaseModel):
-    email: EmailStr
-    verification_code: constr(min_length=8, max_length=8)
-
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
 
 class AuthResponse(BaseModel):
     access_token: str
@@ -63,21 +80,8 @@ class LoginResponse(BaseModel):
     auth: AuthResponse
     userinfo: UserInfo
 
-class ResendVerificationRequest(BaseModel):
-    email: EmailStr
-
-class EmailOnlyLoginRequest(BaseModel):
-    email: EmailStr
-
-class EmailLoginVerificationRequest(BaseModel):
-    email: EmailStr
-    verification_code: constr(min_length=8, max_length=8)
-
-class GoogleAuthRequest(BaseModel):
-    token: str
 
 class GoogleUserInfo(BaseModel):
     email: EmailStr
     given_name: str
     family_name: str
-    # picture: Optional[HttpUrl] = None

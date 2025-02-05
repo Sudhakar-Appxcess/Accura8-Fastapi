@@ -61,7 +61,7 @@ class AccessToken(Base):
     __tablename__ = "access_tokens"
     
     id = Column(Integer, primary_key=True, index=True)
-    token = Column(String(255), unique=True, nullable=False, index=True)
+    token = Column(Text, unique=True, nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Nullable for client credentials flow
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     scopes = Column(Text)
@@ -80,7 +80,7 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
     
     id = Column(Integer, primary_key=True, index=True)
-    token = Column(String(255), unique=True, nullable=False, index=True)
+    token = Column(Text, unique=True, nullable=False, index=True)
     access_token_id = Column(Integer, ForeignKey("access_tokens.id"), nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -91,3 +91,12 @@ class RefreshToken(Base):
     def __repr__(self):
         return f"<RefreshToken {self.id}>"
 
+class Guest(Base):
+    __tablename__ = "guests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ip_address = Column(String(45), unique=True, nullable=False, index=True)
+    credit_balance = Column(Integer, default=3)
+
+    def __repr__(self):
+        return f"<GuestIpCredit {self.ip_address}>"

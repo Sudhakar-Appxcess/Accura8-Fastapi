@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from logzero import logger
 from typing import Tuple
 from typing import Tuple, Dict
-import os
 import aiohttp
 import json
 from app.models.user import User, Role, AccessToken, RefreshToken, Client
@@ -12,9 +11,7 @@ from app.helpers.password import hash_password
 from app.services.email import generate_verification_code, send_verification_email
 from app.schemas.user import UserRegisterRequest,StandardResponse
 from datetime import datetime, timedelta
-from cryptography.fernet import Fernet
 from jose import JWTError, jwt
-import uuid
 from app.config import settings
 import pytz 
 from user_agents import parse
@@ -24,6 +21,7 @@ from app.exceptions.custom_exceptions import (
     VerificationCodeExpiredError,
     UserAlreadyExistsError,
     InvalidCredentialsError,
+    UserExistsNotVerifiedError,
     UserNotVerifiedError,
     UserNotActiveError,
     ClientNotFoundError,
@@ -31,26 +29,81 @@ from app.exceptions.custom_exceptions import (
     UserAlreadyVerifiedError,
     UserNotFoundError
 )
+from cryptography.fernet import Fernet
+import json
+from cryptography.hazmat.primitives import hashes
+from base64 import b64encode, b64decode
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.backends import default_backend
+
+from app.helpers.token import Token
+
 class UserService:
 
-    # fernet = Fernet(settings.FERNET_SECRET_KEY)
-    fernet_key = Fernet.generate_key()  # Generate the key
-    _fernet = Fernet(fernet_key)        # Create Fernet instance
+    # GOOGLE_TOKEN_VERIFY_URL = "https://oauth2.googleapis.com/tokeninfo"
+    GOOGLE_TOKEN_VERIFY_URL=settings.GOOGLE_TOKEN_VERIFY_URL;
 
-    GOOGLE_TOKEN_VERIFY_URL = "https://oauth2.googleapis.com/tokeninfo"
-    
-    
-    @classmethod
-    def encrypt_data(cls, data: dict) -> str:
-        return cls._fernet.encrypt(json.dumps(data).encode()).decode()
+    # _secret_key = settings.AES_SECRET_KEY.encode('utf-8')
+    # if len(_secret_key) not in [16, 24, 32]:
+    #     raise ValueError(f"Invalid key size ({len(_secret_key)}) for AES. Must be 16, 24, or 32 bytes")
+    # _block_size = 128
+
+    # @classmethod
+    # def encrypt_data(cls, data: dict) -> str:
+    #     try:
+    #         if not cls._secret_key:
+    #             raise ValueError("Secret key not initialized")
+
+    #         data_bytes = json.dumps(data).encode('utf-8')
+            
+    #         padder = padding.PKCS7(cls._block_size).padder()
+    #         padded_data = padder.update(data_bytes) + padder.finalize()
+            
+    #         cipher = Cipher(algorithms.AES(cls._secret_key), modes.ECB(), backend=default_backend())
+    #         encryptor = cipher.encryptor()
+    #         encrypted_bytes = encryptor.update(padded_data) + encryptor.finalize()
+            
+    #         return b64encode(encrypted_bytes).decode('utf-8')
+            
+    #     except Exception as e:
+    #         logger.error(f"Encryption failed: {str(e)}")
+    #         raise ValueError(f"Failed to encrypt data: {str(e)}")
+
+    # @classmethod
+    # def decrypt_data(cls, encrypted_data: str) -> dict:
+    #     try:
+    #         if not cls._secret_key:
+    #             raise ValueError("Secret key not initialized")
+
+    #         encrypted_bytes = b64decode(encrypted_data)
+            
+    #         cipher = Cipher(algorithms.AES(cls._secret_key), modes.ECB(), backend=default_backend())
+    #         decryptor = cipher.decryptor()
+    #         decrypted_padded = decryptor.update(encrypted_bytes) + decryptor.finalize()
+            
+    #         unpadder = padding.PKCS7(cls._block_size).unpadder()
+    #         decrypted_bytes = unpadder.update(decrypted_padded) + unpadder.finalize()
+            
+    #         return json.loads(decrypted_bytes.decode('utf-8'))
+            
+    #     except Exception as e:
+    #         logger.error(f"Decryption failed: {str(e)}")
+    #         raise
 
     @staticmethod
     async def register_user(db: Session, user_data: UserRegisterRequest):
         logger.info(f"Registration attempt for email: {user_data.email}")
-        
-        if db.query(User).filter(User.email == user_data.email).first():
-            logger.warning(f"Registration failed - email already exists: {user_data.email}")
-            raise UserAlreadyExistsError()
+    
+        existing_user = db.query(User).filter(User.email == user_data.email).first()
+ 
+        if existing_user:
+            if not existing_user.is_verified:
+                logger.warning(f"Registration failed - email already exists: {user_data.email}, but not verified")
+                raise UserExistsNotVerifiedError()
+            else:
+                logger.warning(f"Registration failed - email already exists: {user_data.email}")
+                raise UserAlreadyExistsError()
 
         try:
             # Try to find the requested role
@@ -84,7 +137,7 @@ class UserService:
                 email=user_data.email,
                 firstname=user_data.firstname,
                 lastname=user_data.lastname,
-                password=hash_password(user_data.password),
+                # password=hash_password(user_data.password),
                 role_id=role.id,
                 verification_code=verification_code,
                 verification_code_expires_at=current_time + timedelta(minutes=10)
@@ -195,6 +248,16 @@ class UserService:
             if not user:
                 logger.warning(f"User not found: {email}")
                 raise InvalidCredentialsError()
+            
+            if not user.is_verified:
+                logger.warning(f"Unverified user attempt to login: {email}")
+                logger.warning(f"Verification code resended : {email}")
+                raise UserNotVerifiedError()
+
+            if not user.is_active:
+                logger.warning(f"Inactive user attempt to login: {email}")
+                raise UserNotActiveError()
+            
             # In the login method, add this check:
             if not user.password:
                 logger.warning(f"User {email} has no password set")
@@ -203,11 +266,6 @@ class UserService:
             if not cls._verify_password(password, user.password):
                 logger.warning(f"Invalid credentials for email: {email}")
                 raise InvalidCredentialsError()
-
-
-            if not user.is_verified:
-                logger.warning(f"Unverified user attempt to login: {email}")
-                raise UserNotVerifiedError()
 
             if not user.is_active:
                 logger.warning(f"Inactive user attempt to login: {email}")
@@ -218,7 +276,8 @@ class UserService:
             
             # Generate tokens
             access_token, refresh_token = cls._generate_tokens(db, user, client)
-            
+
+            logger.info("Genereted Acces token and refresh Token")
             # Prepare response data
             auth_data = {
                 "access_token": access_token.token,
@@ -235,14 +294,13 @@ class UserService:
             }
             
             
-
-            
-            
             response_data = {
                 "auth": auth_data,
                 "userinfo": user_info
             }
-            encrypted_data = cls.encrypt_data(response_data)
+
+            logger.info("Generated Response Data")
+            encrypted_data = Token.encrypt_data(response_data)
 
             # Commit the transaction
             db.commit()
@@ -263,25 +321,25 @@ class UserService:
             logger.error(f"Login failed: {str(e)}")
             raise
 
-    @staticmethod
-    def create_jwt_token(data: dict, expires_delta: timedelta) -> str:
-        """
-        Create a JWT token with given data and expiration using UTC time
-        """
-        to_encode = data.copy()
-        current_utc = datetime.now(pytz.UTC)
-        expire_utc = current_utc + expires_delta
+    # @staticmethod
+    # def create_jwt_token(data: dict, expires_delta: timedelta) -> str:
+    #     """
+    #     Create a JWT token with given data and expiration using UTC time
+    #     """
+    #     to_encode = data.copy()
+    #     current_utc = datetime.now(pytz.UTC)
+    #     expire_utc = current_utc + expires_delta
         
-        to_encode.update({
-            "exp": int(expire_utc.timestamp()),  # UTC timestamp for JWT
-            "iat": int(current_utc.timestamp())  # UTC timestamp for JWT
-        })
-        encoded_jwt = jwt.encode(
-            to_encode, 
-            settings.JWT_SECRET_KEY, 
-            algorithm=settings.JWT_ALGORITHM
-        )
-        return encoded_jwt
+    #     to_encode.update({
+    #         "exp": int(expire_utc.timestamp()),  # UTC timestamp for JWT
+    #         "iat": int(current_utc.timestamp())  # UTC timestamp for JWT
+    #     })
+    #     encoded_jwt = jwt.encode(
+    #         to_encode, 
+    #         settings.JWT_SECRET_KEY, 
+    #         algorithm=settings.JWT_ALGORITHM
+    #     )
+    #     return encoded_jwt
     
 
     @staticmethod
@@ -305,7 +363,7 @@ class UserService:
             }
             
             # Generate JWT access token
-            access_token_jwt = UserService.create_jwt_token(
+            access_token_jwt = Token.create_jwt_token(
                 access_token_data, 
                 timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
             )
@@ -318,7 +376,7 @@ class UserService:
             }
             
             # Generate JWT refresh token
-            refresh_token_jwt = UserService.create_jwt_token(
+            refresh_token_jwt = Token.create_jwt_token(
                 refresh_token_data,
                 timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
             )
@@ -350,20 +408,20 @@ class UserService:
             logger.error(f"Error generating tokens: {str(e)}")
             raise
 
-    @staticmethod
-    def verify_jwt_token(token: str) -> dict:
-        """
-        Verify a JWT token and return its payload
-        """
-        try:
-            payload = jwt.decode(
-                token, 
-                settings.JWT_SECRET_KEY, 
-                algorithms=[settings.JWT_ALGORITHM]
-            )
-            return payload
-        except JWTError:
-            return None
+    # @staticmethod
+    # def verify_jwt_token(token: str) -> dict:
+    #     """
+    #     Verify a JWT token and return its payload
+    #     """
+    #     try:
+    #         payload = jwt.decode(
+    #             token, 
+    #             settings.JWT_SECRET_KEY, 
+    #             algorithms=[settings.JWT_ALGORITHM]
+    #         )
+    #         return payload
+    #     except JWTError:
+    #         return None
     
 
     @staticmethod
@@ -438,30 +496,17 @@ class UserService:
                     raise UserNotActiveError()
                 
                 message = "Login verification code sent to your email."
+                if not user.is_verified:
+                    logger.warning(f"User is not verified: {email}")
+                    raise UserNotVerifiedError()
+
             else:
-                # Create new user with minimal info
-                firstname = email.split('@')[0]  # Use email prefix as firstname
-                role = db.query(Role).filter(Role.name == "USER").first()
-                
-                if not role:
-                    role = Role(
-                        name="USER",
-                        description="Default user role with basic privileges"
-                    )
-                    db.add(role)
-                    db.flush()
-                
-                user = User(
-                    email=email,
-                    firstname=firstname,
-                    lastname="",  # Empty lastname for email-based registration
-                    role_id=role.id,
-                    is_active=True,  
-                    is_verified=False 
+                logger.warning(f"No account found for: {email}")
+                return StandardResponse(
+                    status=False,
+                    message="No account found. Please sign up to create an account."
                 )
-                db.add(user)
-                db.flush()
-                message = "Account created. Please check your email to verify."
+            
                 
             # Generate and save verification code
             verification_code = generate_verification_code()
@@ -547,13 +592,12 @@ class UserService:
                 "role": user.role.name
             }
             
-            # encrypted_data = UserService.encrypt_data(auth_data)
             
             response_data = {
                 "auth": auth_data,
                 "userinfo": user_info
             }
-            encrypted_data = UserService.encrypt_data(auth_data)
+            encrypted_data = Token.encrypt_data(response_data)
             
             # Commit all changes
             db.commit()
@@ -676,8 +720,6 @@ class UserService:
                 "role": user.role.name
             }
             
-            # Encrypt authentication data
-            # encrypted_data = cls.encrypt_data(auth_data)
             
             
             response_data = {
@@ -685,7 +727,7 @@ class UserService:
                 "userinfo": user_info
             }
 
-            encrypted_data = cls.encrypt_data(auth_data)
+            encrypted_data = Token.encrypt_data(response_data)
 
 
             # Commit all changes

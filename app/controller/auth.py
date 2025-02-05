@@ -5,9 +5,10 @@ from logzero import logger
 from app.db import get_db
 from app.schemas.user import UserRegisterRequest, StandardResponse, EmailVerificationRequest
 from app.services.user import UserService
-from app.exceptions.custom_exceptions import CustomException, UserAlreadyExistsError, VerificationCodeExpiredError, InvalidVerificationCodeError
+from app.exceptions.custom_exceptions import CustomException
 from app.schemas.user import LoginRequest,ResendVerificationRequest,EmailLoginVerificationRequest,EmailOnlyLoginRequest,GoogleAuthRequest
 from typing import Optional
+from app.helpers.recaptcha import verify_recaptcha
 
 
 
@@ -19,16 +20,28 @@ async def register(
     db: Session = Depends(get_db)
 ):
     try:
+        # Verify reCAPTCHA first
+        if not await verify_recaptcha(user_data.recaptcha):
+            raise CustomException(message="reCAPTCHA verification failed")
+            
         await UserService.register_user(db, user_data)
         return StandardResponse(
             status=True,
             message="Registration successful! Please check your email to verify your account."
         )
     except CustomException as ce:
-        return StandardResponse(
-            status=False,
-            message=ce.message,
-            data=ce.data
+        # return StandardResponse(
+        #     status=False,
+        #     message=ce.message,
+        #     data=ce.data
+        # )
+        raise HTTPException(
+            status_code=ce.status_code,
+            detail=StandardResponse(
+                status=False,
+                message=ce.message,
+                data=ce.data
+            ).dict()
         )
     except Exception as e:
         logger.error(f"Unexpected error during registration: {str(e)}")
@@ -38,7 +51,7 @@ async def register(
         )
     
 
-# routers/user.py
+
 @router.post("/verify-email", response_model=StandardResponse)
 async def verify_email(
     verification_data: EmailVerificationRequest,
@@ -56,10 +69,13 @@ async def verify_email(
         )
 
     except CustomException as ce:  
-        return StandardResponse(
-            status=False,
-            message=ce.message,
-            data=ce.data
+        raise HTTPException(
+            status_code=ce.status_code,
+            detail=StandardResponse(
+                status=False,
+                message=ce.message,
+                data=ce.data
+            ).dict()
         )
     
     except Exception as e:
@@ -78,19 +94,27 @@ async def login(
     user_agent: Optional[str] = Header(None)
 ):
     try:
+        if not await verify_recaptcha(login_data.recaptcha):
+            raise CustomException(message="reCAPTCHA verification failed")
+        
         result = await UserService.login(
             db,
             login_data.email,
             login_data.password,
             user_agent or request.headers.get("user-agent", "")
         )
-        return StandardResponse(**result)
+
         
+        return StandardResponse(**result)
+                
     except CustomException as ce:
-        return StandardResponse(
-            status=False,
-            message=ce.message,
-            data=ce.data
+        raise HTTPException(
+            status_code=ce.status_code,
+            detail=StandardResponse(
+                status=False,
+                message=ce.message,
+                data=ce.data
+            ).dict()
         )
         
     except Exception as e:
@@ -116,10 +140,13 @@ async def resend_verification(
         )
         
     except CustomException as ce:
-        return StandardResponse(
-            status=False,
-            message=ce.message,
-            data=ce.data
+        raise HTTPException(
+            status_code=ce.status_code,
+            detail=StandardResponse(
+                status=False,
+                message=ce.message,
+                data=ce.data
+            ).dict()
         )
         
     except Exception as e:
@@ -137,6 +164,10 @@ async def initiate_email_login(
     db: Session = Depends(get_db)
 ):
     try:
+         # Verify reCAPTCHA first
+        if not await verify_recaptcha(login_data.recaptcha):
+            raise CustomException(message="reCAPTCHA verification failed")
+        
         result = await UserService.initiate_email_login(
             db,
             login_data.email
@@ -144,10 +175,13 @@ async def initiate_email_login(
         return result
         
     except CustomException as ce:
-        return StandardResponse(
-            status=False,
-            message=ce.message,
-            data=ce.data
+        raise HTTPException(
+            status_code=ce.status_code,
+            detail=StandardResponse(
+                status=False,
+                message=ce.message,
+                data=ce.data
+            ).dict()
         )
         
     except Exception as e:
@@ -171,13 +205,18 @@ async def verify_email_login(
             verification_data.verification_code,
             user_agent or request.headers.get("user-agent", "")
         )
+
+     
         return StandardResponse(**result)
         
     except CustomException as ce:
-        return StandardResponse(
-            status=False,
-            message=ce.message,
-            data=ce.data
+        raise HTTPException(
+            status_code=ce.status_code,
+            detail=StandardResponse(
+                status=False,
+                message=ce.message,
+                data=ce.data
+            ).dict()
         )
         
     except Exception as e:
@@ -204,13 +243,18 @@ async def google_auth(
             auth_data.token,
             user_agent or request.headers.get("user-agent", "")
         )
+
+       
         return StandardResponse(**result)
         
     except CustomException as ce:
-        return StandardResponse(
-            status=False,
-            message=ce.message,
-            data=ce.data
+        raise HTTPException(
+            status_code=ce.status_code,
+            detail=StandardResponse(
+                status=False,
+                message=ce.message,
+                data=ce.data
+            ).dict()
         )
         
     except Exception as e:

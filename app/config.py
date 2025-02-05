@@ -21,7 +21,10 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: str
 
-    FERNET_SECRET_KEY:str
+
+    AES_SECRET_KEY:str
+
+    RECAPTCHA_SECRET_KEY:str
 
     JWT_SECRET_KEY:str  
     JWT_ALGORITHM : str = "HS256"
@@ -32,6 +35,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str
+    GOOGLE_TOKEN_VERIFY_URL:str
 
     FRONTEND_URL: str
 
