@@ -26,6 +26,17 @@ class Settings(BaseSettings):
 
     RECAPTCHA_SECRET_KEY:str
 
+    OPENAI_API_KEY:str
+
+    PINECONE_INDEX_NAME:str
+    PINECONE_ENV:str
+    PINECONE_API_KEY:str
+    PINECONE_HOST:str
+    PINECONE_INDEX:str
+
+    EMBEDDING_DIMENSION:str
+    EMBEDDING_MODEL:str
+
     JWT_SECRET_KEY:str  
     JWT_ALGORITHM : str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES : int = 60  # 1 hour
