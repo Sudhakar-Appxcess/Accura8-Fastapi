@@ -23,8 +23,8 @@ class Settings(BaseSettings):
 
 
     AES_SECRET_KEY:str
-
     RECAPTCHA_SECRET_KEY:str
+    FERNET_ENCRYPTION_KEY:bytes = b'dZxUBR1FBz2G0kr6IYRlh4v-T0NXt5lCvndX_qqwxUU='
 
     OPENAI_API_KEY:str
 

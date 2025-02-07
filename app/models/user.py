@@ -24,6 +24,9 @@ class User(Base):
     # Add this line to define the relationship with Role
     role = relationship("Role", back_populates="users")
 
+
+    databases = relationship("Database", back_populates="user")
+
     def __repr__(self):
         return f"<User {self.email}>"
     
@@ -72,7 +75,8 @@ class AccessToken(Base):
     user = relationship("User", back_populates="access_tokens")
     client = relationship("Client", back_populates="access_tokens")
     refresh_token = relationship("RefreshToken", back_populates="access_token", uselist=False)
-
+    
+  
     def __repr__(self):
         return f"<AccessToken {self.id}>"
 
